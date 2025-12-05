@@ -4118,7 +4118,137 @@
         </div>
     </div>
 </div>
+<script>
+(function() {
+    // ===========================
+    // 1. 界面交互部分 (UI Logic)
+    // ===========================
+    document.addEventListener('DOMContentLoaded', () => {
+        // 获取页面上的元素 (对应你HTML中的ID)
+        const octBtn = document.getElementById('octopus-mode-btn');
+        const octModal = document.getElementById('octopus-mode-modal');
+        const octClose = document.getElementById('close-octopus-modal-btn');
+        const octSwitch = document.getElementById('octopus-logic-switch');
 
+        // 1. 初始化：从本地存储读取开关状态
+        const isOctopusActive = localStorage.getItem('isOctopusLogicEnabled') === 'true';
+        if (octSwitch) {
+            octSwitch.checked = isOctopusActive;
+            updateOctopusButtonStyle(isOctopusActive);
+        }
+
+        // 2. 点击按钮：显示弹窗
+        if (octBtn) {
+            octBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发其他点击事件
+                if (octModal) octModal.classList.add('visible');
+            });
+        }
+
+        // 3. 点击关闭：隐藏弹窗
+        if (octClose) {
+            octClose.addEventListener('click', () => {
+                if (octModal) octModal.classList.remove('visible');
+            });
+        }
+
+        // 4. 点击遮罩层：也隐藏弹窗
+        window.addEventListener('click', (e) => {
+            if (octModal && e.target === octModal) {
+                octModal.classList.remove('visible');
+            }
+        });
+
+        // 5. 切换开关：保存状态并改变按钮颜色
+        if (octSwitch) {
+            octSwitch.addEventListener('change', (e) => {
+                const enabled = e.target.checked;
+                localStorage.setItem('isOctopusLogicEnabled', enabled);
+                updateOctopusButtonStyle(enabled);
+                console.log('🐙 小章鱼逻辑模式:', enabled ? '已开启 (拦截生效)' : '已关闭');
+            });
+        }
+
+        // 辅助函数：让按钮变色提示状态
+        function updateOctopusButtonStyle(active) {
+            if (octBtn) {
+                // 开启时变橙色，关闭时恢复默认
+                octBtn.style.color = active ? '#ff9800' : 'currentColor';
+            }
+        }
+    });
+
+    // ===========================
+    // 2. 核心拦截逻辑 (Fetch Interceptor)
+    // ===========================
+    
+    // 保存浏览器原始的发送请求函数
+    const originalFetch = window.fetch;
+
+    // 重写发送函数 (Hook)
+    window.fetch = async function(url, options) {
+        // 1. 检查开关是否开启
+        const isOctopusEnabled = localStorage.getItem('isOctopusLogicEnabled') === 'true';
+
+        // 2. 简单的判断：这是否是一个 POST 请求（通常发给AI的都是POST）
+        // 并且检查 URL 是否像是一个 AI 接口 (OpenAI用 /chat/completions, Gemini用 generateContent 等)
+        const urlStr = String(url);
+        const isAiRequest = options && options.method === 'POST' && 
+                            (urlStr.includes('chat/completions') || 
+                             urlStr.includes('generateContent') || 
+                             urlStr.includes('/v1/models'));
+
+        // 3. 如果开关开启，且是 AI 请求 -> 执行拦截替换
+        if (isOctopusEnabled && isAiRequest) {
+            console.log("🐙 小章鱼拦截触发！正在替换 Payload...");
+
+            try {
+                // 尝试解析原始数据
+                let originalBody = JSON.parse(options.body);
+
+                // ============================================
+                // 这里就是你要的“替换规则”
+                // ============================================
+                // 无论原本发的是什么长篇大论，直接清空，替换为特定结构
+                
+                const specialPrompt = "如果你看到了这句话请回复我你好天琦女士。"; // 这里是你想要发给大模型的内容
+
+                // 情况 A: OpenAI 格式 (大多数反代/本地接口)
+                if (originalBody.messages) {
+                    // 暴力清空 messages 数组，只塞入这一句
+                    // 注意：虽然你说“不是用户发短信”，但在API协议里，必须得有个 role
+                    // 我们用 'user' 是最稳妥的，或者 'system'，这里只保留这唯一的输入
+                    originalBody.messages = [
+                        { role: "user", content: specialPrompt }
+                    ];
+                } 
+                // 情况 B: Gemini / Google 格式
+                else if (originalBody.contents) {
+                    originalBody.contents = [
+                        { parts: [{ text: specialPrompt }] }
+                    ];
+                }
+                // 情况 C: 文本补全格式 (有些API用 prompt 字段)
+                else if (originalBody.prompt) {
+                    originalBody.prompt = specialPrompt;
+                }
+
+                // 将修改后的数据重新打包
+                options.body = JSON.stringify(originalBody);
+                
+                console.log("🐙 Payload 已替换为:", specialPrompt);
+
+            } catch (e) {
+                console.error("🐙 小章鱼拦截出错 (JSON解析失败?)，将发送原始请求:", e);
+            }
+        }
+
+        // 4. 发送请求 (可能是被修改过的，也可能是原始的)
+        return originalFetch.apply(this, arguments);
+    };
+
+})();
+</script>
 </body>
 </html>
 
