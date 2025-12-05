@@ -1300,7 +1300,15 @@
         <line x1="9" y1="9" x2="9.01" y2="9"></line>
         <line x1="15" y1="9" x2="15.01" y2="9"></line>
     </svg>
-</button> <button id="send-photo-btn" class="chat-action-icon-btn action-button" title="发送照片"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+</button> <button id="octopus-mode-btn" class="chat-action-icon-btn action-button" title="切换核心逻辑">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22c4.97 0 9-1.79 9-4s-4.03-4-9-4-9 1.79-9 4 4.03 4 9 4z" opacity="0.3"></path>
+        <path d="M12 2C7.03 2 3 6.03 3 11c0 2.21.8 4.24 2.12 5.78C5.87 18.32 8.76 19.5 12 19.5s6.13-1.18 6.88-2.72C20.2 15.24 21 13.21 21 11c0-4.97-4.03-9-9-9z"></path>
+        <circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none"></circle>
+        <circle cx="15" cy="10" r="1.5" fill="currentColor" stroke="none"></circle>
+    </svg>
+</button>
+          <button id="send-photo-btn" class="chat-action-icon-btn action-button" title="发送照片"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
               xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
               <circle cx="12" cy="13" r="4"></circle>
@@ -1395,13 +1403,6 @@
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 11l3 3L22 4"></path>
         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-    </svg>
-</button>
-          <button id="octopus-mode-btn" class="chat-action-icon-btn action-button" title="小章鱼模式">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2c-5 0-9 4-9 9 0 4 3 8 3 8v3l3-1 3 1 3-1 3 1v-3c0 0 3-4 3-8 0-5-4-9-9-9z"></path>
-        <circle cx="9" cy="10" r="1" fill="currentColor"></circle>
-        <circle cx="15" cy="10" r="1" fill="currentColor"></circle>
     </svg>
 </button>
 </div>
@@ -4089,63 +4090,34 @@
 <audio id="silent-audio-player" loop preload="auto" style="display:none;">
     <source src="https://phoebeboo.github.io/mewoooo/1-second-of-silence.mp3" type="audio/mpeg">
   </audio><audio id="tts-audio-player" style="display:none;"></audio>
+
 <div id="octopus-mode-modal" class="modal">
-    <div class="modal-content" style="width: 280px; height: auto;">
+    <div class="modal-content" style="width: 300px; height: auto;">
         <div class="modal-header">
-            <span>🐙 逻辑切换</span>
+            <span>🐙 核心逻辑切换</span>
         </div>
         
         <div class="modal-body" style="padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="text-align: left;">
-                    <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #333;">启用小章鱼逻辑</label>
-                    <div style="font-size: 12px; color: #999;">开启后将替换底层Prompt逻辑</div>
+                <div style="text-align: left; padding-right: 10px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #333;">启用独立逻辑</label>
+                    <div style="font-size: 12px; color: #888; line-height: 1.5;">
+                        开启后将完全接管并替换原有的 Prompt 发送逻辑。
+                    </div>
                 </div>
                 
                 <label class="toggle-switch">
-                    <input type="checkbox" id="octopus-mode-switch">
+                    <input type="checkbox" id="octopus-logic-switch">
                     <span class="slider"></span>
                 </label>
             </div>
         </div>
 
         <div class="modal-footer">
-            <button class="save" id="close-octopus-modal-btn" style="width: 100%;">完成</button>
+            <button class="save" id="close-octopus-modal-btn" style="width: 100%;">关闭</button>
         </div>
     </div>
 </div>
-<script>
-    // 小章鱼按钮的基础交互逻辑
-    document.addEventListener('DOMContentLoaded', () => {
-        const octopusBtn = document.getElementById('octopus-mode-btn');
-        const octopusModal = document.getElementById('octopus-mode-modal');
-        const octopusCloseBtn = document.getElementById('close-octopus-modal-btn');
-
-        // 打开弹窗
-        if(octopusBtn && octopusModal) {
-            octopusBtn.addEventListener('click', () => {
-                octopusModal.classList.add('visible');
-            });
-        }
-
-        // 关闭弹窗
-        if(octopusCloseBtn && octopusModal) {
-            octopusCloseBtn.addEventListener('click', () => {
-                octopusModal.classList.remove('visible');
-            });
-        }
-        
-        // 点击遮罩层关闭
-        if(octopusModal) {
-            octopusModal.addEventListener('click', (e) => {
-                if (e.target === octopusModal) {
-                    octopusModal.classList.remove('visible');
-                }
-            });
-        }
-        
-    });
-</script>
 
 </body>
 </html>
