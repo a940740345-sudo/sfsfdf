@@ -4014,6 +4014,38 @@
         </div>
     </div>
 </div>
+  <div class="modal-footer">
+            <button class="cancel" id="cancel-todo-editor-btn">取消</button>
+            <button class="save" id="save-todo-btn">保存</button>
+        </div>
+    </div>
+</div>
+
+<div id="octopus-settings-modal" class="modal">
+    <div class="modal-content" style="width: 280px; height: auto;">
+        <div class="modal-header">
+            <span>🐙 小章鱼模式</span>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <label for="octopus-mode-switch" style="margin-bottom: 0; font-weight: bold;">启用小章鱼人格</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="octopus-mode-switch">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <p style="font-size: 13px; color: #888; line-height: 1.5;">
+                开启后，发给大模型的系统提示词将被替换为“小章鱼”专用版本。
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="save" id="close-octopus-modal-btn" style="width: 100%;">关闭</button>
+        </div>
+    </div>
+</div>
+
+<div id="gr-settings-modal" class="modal">
+    <div class="modal-content" style="height: 85%; background-color: #FAFAF9;">
 <div id="gr-settings-modal" class="modal">
     <div class="modal-content" style="height: 85%; background-color: #FAFAF9;">
         <div class="gr-header" style="background: transparent; padding: 15px;">
