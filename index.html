@@ -1397,14 +1397,11 @@
         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
     </svg>
 </button>
-<button id="octopus-mode-btn" class="chat-action-icon-btn action-button" title="小章鱼模式" onclick="document.getElementById('octopus-settings-modal').classList.add('visible')">
+          <button id="octopus-mode-btn" class="chat-action-icon-btn action-button" title="小章鱼模式">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2a8 8 0 0 1 8 8v3a2 2 0 0 1-2 2v5a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-5a2 2 0 0 1-2-2v-3a8 8 0 0 1 8-8z"></path>
-        <path d="M9 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"></path>
-        <path d="M15 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"></path>
-        <path d="M9 22v-3"></path>
-        <path d="M12 22v-2"></path>
-        <path d="M15 22v-3"></path>
+        <path d="M12 2c-5 0-9 4-9 9 0 4 3 8 3 8v3l3-1 3 1 3-1 3 1v-3c0 0 3-4 3-8 0-5-4-9-9-9z"></path>
+        <circle cx="9" cy="10" r="1" fill="currentColor"></circle>
+        <circle cx="15" cy="10" r="1" fill="currentColor"></circle>
     </svg>
 </button>
 </div>
@@ -4097,20 +4094,23 @@
         <div class="modal-header">
             <span>🐙 小章鱼模式</span>
         </div>
+        
         <div class="modal-body" style="padding: 20px;">
-            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
-                <label for="octopus-prompt-switch" style="margin-bottom: 0; font-weight: 500;">启用特殊提示词</label>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="text-align: left;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #333;">启用特殊提示词</label>
+                    <div style="font-size: 12px; color: #999;">开启后将使用小章鱼人格 Prompt</div>
+                </div>
+                
                 <label class="toggle-switch">
-                    <input type="checkbox" id="octopus-prompt-switch">
+                    <input type="checkbox" id="octopus-mode-switch">
                     <span class="slider"></span>
                 </label>
             </div>
-            <p style="font-size: 13px; color: #999; margin-top: 15px; line-height: 1.5; background: #f5f5f7; padding: 10px; border-radius: 8px;">
-                开启后，系统将切换至“小章鱼”专属 Prompt 发送给大模型。关闭则恢复默认设置。
-            </p>
         </div>
+
         <div class="modal-footer">
-            <button class="save" onclick="document.getElementById('octopus-mode-modal').classList.remove('visible')" style="width: 100%;">完成</button>
+            <button class="save" id="close-octopus-modal-btn" style="width: 100%;">关闭</button>
         </div>
     </div>
 </div>
