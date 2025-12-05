@@ -4114,7 +4114,38 @@
         </div>
     </div>
 </div>
+<script>
+    // 小章鱼按钮的基础交互逻辑
+    document.addEventListener('DOMContentLoaded', () => {
+        const octopusBtn = document.getElementById('octopus-mode-btn');
+        const octopusModal = document.getElementById('octopus-mode-modal');
+        const octopusCloseBtn = document.getElementById('close-octopus-modal-btn');
 
+        // 打开弹窗
+        if(octopusBtn && octopusModal) {
+            octopusBtn.addEventListener('click', () => {
+                octopusModal.classList.add('visible');
+            });
+        }
+
+        // 关闭弹窗
+        if(octopusCloseBtn && octopusModal) {
+            octopusCloseBtn.addEventListener('click', () => {
+                octopusModal.classList.remove('visible');
+            });
+        }
+        
+        // 点击遮罩层关闭
+        if(octopusModal) {
+            octopusModal.addEventListener('click', (e) => {
+                if (e.target === octopusModal) {
+                    octopusModal.classList.remove('visible');
+                }
+            });
+        }
+        
+    });
+</script>
 
 </body>
 </html>
