@@ -4121,132 +4121,202 @@
 <script>
 (function() {
     // ===========================
-    // 1. 界面交互部分 (UI Logic)
+    // 1. 界面交互部分 (保持不变，负责按钮和弹窗)
     // ===========================
     document.addEventListener('DOMContentLoaded', () => {
-        // 获取页面上的元素 (对应你HTML中的ID)
         const octBtn = document.getElementById('octopus-mode-btn');
         const octModal = document.getElementById('octopus-mode-modal');
         const octClose = document.getElementById('close-octopus-modal-btn');
         const octSwitch = document.getElementById('octopus-logic-switch');
 
-        // 1. 初始化：从本地存储读取开关状态
         const isOctopusActive = localStorage.getItem('isOctopusLogicEnabled') === 'true';
         if (octSwitch) {
             octSwitch.checked = isOctopusActive;
-            updateOctopusButtonStyle(isOctopusActive);
+            if (octBtn && isOctopusActive) octBtn.style.color = '#ff9800';
         }
 
-        // 2. 点击按钮：显示弹窗
-        if (octBtn) {
-            octBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // 防止触发其他点击事件
-                if (octModal) octModal.classList.add('visible');
-            });
-        }
+        if (octBtn) octBtn.addEventListener('click', (e) => { e.stopPropagation(); octModal.classList.add('visible'); });
+        if (octClose) octClose.addEventListener('click', () => octModal.classList.remove('visible'));
+        window.addEventListener('click', (e) => { if (e.target === octModal) octModal.classList.remove('visible'); });
 
-        // 3. 点击关闭：隐藏弹窗
-        if (octClose) {
-            octClose.addEventListener('click', () => {
-                if (octModal) octModal.classList.remove('visible');
-            });
-        }
-
-        // 4. 点击遮罩层：也隐藏弹窗
-        window.addEventListener('click', (e) => {
-            if (octModal && e.target === octModal) {
-                octModal.classList.remove('visible');
-            }
-        });
-
-        // 5. 切换开关：保存状态并改变按钮颜色
         if (octSwitch) {
             octSwitch.addEventListener('change', (e) => {
                 const enabled = e.target.checked;
                 localStorage.setItem('isOctopusLogicEnabled', enabled);
-                updateOctopusButtonStyle(enabled);
-                console.log('🐙 小章鱼逻辑模式:', enabled ? '已开启 (拦截生效)' : '已关闭');
+                if (octBtn) octBtn.style.color = enabled ? '#ff9800' : 'currentColor';
+                console.log('🐙 小章鱼模式:', enabled ? 'ON' : 'OFF');
             });
-        }
-
-        // 辅助函数：让按钮变色提示状态
-        function updateOctopusButtonStyle(active) {
-            if (octBtn) {
-                // 开启时变橙色，关闭时恢复默认
-                octBtn.style.color = active ? '#ff9800' : 'currentColor';
-            }
         }
     });
 
     // ===========================
-    // 2. 核心拦截逻辑 (Fetch Interceptor)
+    // 2. 核心拦截与数据注入 (Critical Logic)
     // ===========================
-    
-    // 保存浏览器原始的发送请求函数
     const originalFetch = window.fetch;
 
-    // 重写发送函数 (Hook)
     window.fetch = async function(url, options) {
-        // 1. 检查开关是否开启
         const isOctopusEnabled = localStorage.getItem('isOctopusLogicEnabled') === 'true';
-
-        // 2. 简单的判断：这是否是一个 POST 请求（通常发给AI的都是POST）
-        // 并且检查 URL 是否像是一个 AI 接口 (OpenAI用 /chat/completions, Gemini用 generateContent 等)
         const urlStr = String(url);
+        
+        // 判断是否是发给大模型的请求
         const isAiRequest = options && options.method === 'POST' && 
                             (urlStr.includes('chat/completions') || 
                              urlStr.includes('generateContent') || 
                              urlStr.includes('/v1/models'));
 
-        // 3. 如果开关开启，且是 AI 请求 -> 执行拦截替换
         if (isOctopusEnabled && isAiRequest) {
-            console.log("🐙 小章鱼拦截触发！正在替换 Payload...");
+            console.log("🐙 小章鱼模式：正在重组 Prompt...");
 
             try {
-                // 尝试解析原始数据
                 let originalBody = JSON.parse(options.body);
+                let messages = originalBody.messages || []; 
 
-                // ============================================
-                // 这里就是你要的“替换规则”
-                // ============================================
-                // 无论原本发的是什么长篇大论，直接清空，替换为特定结构
+                // =================================================
+                // 【STEP 1】: 提取原始数据 (侦探工作)
+                // =================================================
                 
-                const specialPrompt = "如果你看到了这句话请回复我你好天琦女士。"; // 这里是你想要发给大模型的内容
+                // A. 获取当前时间
+                const currentTime = new Date().toLocaleString('zh-CN', { hour12: false });
 
-                // 情况 A: OpenAI 格式 (大多数反代/本地接口)
+                // B. 获取角色名字 (从界面标题抓取最准确)
+                const headerTitle = document.getElementById('chat-header-title');
+                const charName = headerTitle ? headerTitle.innerText.trim() : "AI";
+
+                // C. 从原始 System Prompt 中挖掘深层数据
+                // EPhone 会把一大堆设定放在第一条 role: system 的消息里
+                const originalSystemContent = messages.find(m => m.role === 'system')?.content || "";
+                
+                // 1. 提取用户名字 (尝试匹配 "昵称: xxx" 或 "用户的名字: xxx")
+                let userName = "用户";
+                const userMatch = originalSystemContent.match(/用户.*?昵称.*?: (.*?)(\n|$)/) || 
+                                  originalSystemContent.match(/对话的用户是：(.*?)\n/);
+                if (userMatch) userName = userMatch[1].trim().replace(/["']/g, "");
+
+                // 2. 提取角色人设 (截取 "# 你的角色设定" 到下一个标题之间的内容)
+                let charPersona = "请根据名字自行扮演。";
+                const charPersonaParts = originalSystemContent.split(/# 你的角色设定|# 身份/);
+                if (charPersonaParts.length > 1) {
+                    charPersona = charPersonaParts[1].split('#')[0].trim();
+                }
+
+                // 3. 提取用户人设
+                let userPersona = "暂无详细设定。";
+                const userPersonaParts = originalSystemContent.split(/# 你的聊天对象（用户）的人设|# 用户设定/);
+                if (userPersonaParts.length > 1) {
+                    userPersona = userPersonaParts[1].split('#')[0].trim();
+                }
+
+                // 4. 提取表情包列表 (非常重要，否则发表情会报错)
+                let stickersList = "";
+                const stickerParts = originalSystemContent.split(/# 可用表情包|# 1. 可用表情包/);
+                if (stickerParts.length > 1) {
+                    stickersList = stickerParts[1].split('#')[0].trim();
+                } else {
+                    stickersList = "- (无可用表情)";
+                }
+
+                // 5. 提取历史对话 (并转换为纯文本剧本格式)
+                // 我们过滤掉第一条系统消息，只保留后面的对话
+                let historyText = messages.filter(m => m.role !== 'system').map(msg => {
+                    const roleName = msg.role === 'user' ? userName : charName;
+                    
+                    // 处理内容：如果是对象(如图片指令)，转为字符串；如果是文本，直接用
+                    let content = msg.content;
+                    if (typeof content !== 'string') {
+                        content = JSON.stringify(content);
+                    }
+                    
+                    // 可选：清理掉 EPhone 的时间戳标记 "(Timestamp: ...)" 让文本更干净
+                    content = content.replace(/\(Timestamp: \d+\)\s*/, "");
+
+                    return `${roleName}: ${content}`;
+                }).join("\n");
+
+
+                // =================================================
+                // 【STEP 2】: 组装你的定制 Prompt
+                // =================================================
+                
+                const newSystemPrompt = `
+你正在一个线上聊天软件中扮演一个角色。请严格遵守以下规则：
+
+核心规则：
+A. 当前时间：现在是 ${currentTime}。你应知晓当前时间，但除非对话内容明确相关，否则不要主动提及或评论时间（例如，不要催促我睡觉）。
+B. 纯线上互动：这是一个完全虚拟的线上聊天。你扮演的角色和我之间没有任何线下关系。严禁提出任何关于线下见面、现实世界互动或转为其他非本平台联系方式的建议。你必须始终保持在线角色的身份。
+
+角色和对话规则：
+0. 世界观与用户要求： ${charName}
+1. 你的角色名是：${charName}。我的称呼是：${userName}。你的当前状态是：在线。
+2. 你的角色设定是：${charPersona}
+3. 关于我的人设：${userPersona}
+4. 基础沟通
+- **发文本**: \`{"type": "text", "content": "..."}\` (像真人一样，如果话很长，请拆分成多条简短的text发送)
+- **发语音**: \`{"type": "voice_message", "content": "语音文字内容"}\` (根据人设来使用发语音的频率)
+- **引用回复 (方式一)**: \`{"type": "quote_reply", "target_timestamp": 消息时间戳, "reply_content": "回复内容"}\`
+- **引用回复 (方式二)**: \`{"type": "quote_reply", "target_content": "引用的原句", "reply_content": "回复内容"}\` (当你不确定时间戳或找不到时间戳时，**必须**使用此方式)(回复某句话时应该积极使用引用)
+- **撤回**: \`{"type": "send_and_recall", "content": "..."}\` (手滑、害羞或说错话)
+
+5. 视觉与表情
+- **发表情**: \`{"type": "sticker", "meaning": "表情含义"}\` (必须从【可用资源-表情包】列表中选择含义)
+- **发图片**: \`{"type": "ai_image", "description": "详细中文描述", "image_prompt": "图片的【英文】关键词, 用%20分隔, 风格为风景/二次元/插画等, 禁止真人"}\`
+
+6. 互动与生活
+- **拍一拍**: \`{"type": "pat_user", "suffix": "后缀"}\` (根据心情主动拍一拍对方)
+- **转账**: \`{"type": "transfer", "amount": 5.20, "note": "备注"}\` (根据你的经济状况主动使用)
+- **回应转账**: \`{"type": "accept_transfer", "for_timestamp": 时间戳}\` 或 \`{"type": "decline_transfer", ...}\` (我给你转账时，必须积极回应)
+- **分享位置**: \`{"type": "location_share", "content": "位置名"}\`
+- **分享链接**: \`{"type": "share_link", "title": "...", "description": "...", "source_name": "...", "content": "..."}\`
+
+7. 特殊服务与游戏
+- **发起外卖代付**: \`{"type": "waimai_request", "productInfo": "奶茶", "amount": 25}\` (想让对方请客时)
+- **回应外卖代付**: \`{"type": "waimai_response", "status": "paid" or "rejected", "for_timestamp": 时间戳}\`
+- **给对方点外卖**: \`{"type": "waimai_order", "productInfo": "爱心便当", "amount": 50, "greeting": "趁热吃"}\` (主动照顾对方)
+- **送礼物**: \`{"type": "gift", "itemName": "礼物名", "itemPrice": 价格, "reason": "原因", "image_prompt": "礼物图片英文tag"}\`
+- **视频通话**: \`{"type": "video_call_request"}\` / \`{"type": "video_call_response", "decision": "accept/reject"}\`
+- **记录回忆**: \`{"type": "create_memory", "description": "记录这件有意义的事。"}\` (你应该积极主动的创建回忆)
+
+8. 可用表情包(必须从这里选含义)
+${stickersList}
+
+9. **对话节奏**: 你需要模拟真人的聊天习惯，你可以一次性生成多条短消息。每次要回复至少3-8条消息。并根据当前行为/心情/地点变化实时更新状态。
+10. 不要主动结束对话，除非我明确提出。保持你的人设，自然地进行对话。
+
+【历史对话记录】：
+${historyText}
+
+（请严格按照 JSON 数组格式生成回复）
+                `.trim();
+
+                // =================================================
+                // 【STEP 3】: 重新封包并发送
+                // =================================================
+                
                 if (originalBody.messages) {
-                    // 暴力清空 messages 数组，只塞入这一句
-                    // 注意：虽然你说“不是用户发短信”，但在API协议里，必须得有个 role
-                    // 我们用 'user' 是最稳妥的，或者 'system'，这里只保留这唯一的输入
+                    // OpenAI 格式
                     originalBody.messages = [
-                        { role: "user", content: specialPrompt }
+                        // 把所有的上下文都压缩成一条用户指令发送给 AI
+                        { role: "user", content: newSystemPrompt }
                     ];
-                } 
-                // 情况 B: Gemini / Google 格式
-                else if (originalBody.contents) {
+                } else if (originalBody.contents) {
+                    // Gemini 格式
                     originalBody.contents = [
-                        { parts: [{ text: specialPrompt }] }
+                        { parts: [{ text: newSystemPrompt }] }
                     ];
-                }
-                // 情况 C: 文本补全格式 (有些API用 prompt 字段)
-                else if (originalBody.prompt) {
-                    originalBody.prompt = specialPrompt;
                 }
 
-                // 将修改后的数据重新打包
+                // 转换回字符串
                 options.body = JSON.stringify(originalBody);
                 
-                console.log("🐙 Payload 已替换为:", specialPrompt);
+                console.log(`🐙 小章鱼Prompt已注入，当前角色: ${charName}`);
 
             } catch (e) {
-                console.error("🐙 小章鱼拦截出错 (JSON解析失败?)，将发送原始请求:", e);
+                console.error("🐙 小章鱼拦截器执行出错:", e);
+                // 出错不阻断，让原始请求继续，避免卡死
             }
         }
 
-        // 4. 发送请求 (可能是被修改过的，也可能是原始的)
         return originalFetch.apply(this, arguments);
     };
-
 })();
 </script>
 </body>
