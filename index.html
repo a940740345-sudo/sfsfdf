@@ -4121,7 +4121,7 @@
 <script>
 (function() {
     // ===========================
-    // 1. 界面交互部分 (小章鱼按钮与弹窗逻辑)
+    // 1. 界面交互部分 (按钮与弹窗)
     // ===========================
     document.addEventListener('DOMContentLoaded', () => {
         const octBtn = document.getElementById('octopus-mode-btn');
@@ -4129,6 +4129,7 @@
         const octClose = document.getElementById('close-octopus-modal-btn');
         const octSwitch = document.getElementById('octopus-logic-switch');
 
+        // 读取历史状态
         const isOctopusActive = localStorage.getItem('isOctopusLogicEnabled') === 'true';
         if (octSwitch) {
             octSwitch.checked = isOctopusActive;
@@ -4150,7 +4151,7 @@
     });
 
     // ===========================
-    // 2. 核心拦截与数据注入 (拦截请求并修改提示词)
+    // 2. 核心拦截与数据注入 (API Interceptor)
     // ===========================
     const originalFetch = window.fetch;
 
@@ -4172,20 +4173,21 @@
                 let messages = originalBody.messages || []; 
 
                 // =================================================
-                // 【STEP 1】: 提取原始数据
+                // 【STEP 1】: 提取原始数据 (变量抓取)
                 // =================================================
                 
                 // A. 获取当前时间
                 const currentTime = new Date().toLocaleString('zh-CN', { hour12: false });
 
-                // B. 获取角色名字
+                // B. 获取角色名字 (从界面标题抓取)
                 const headerTitle = document.getElementById('chat-header-title');
                 const charName = headerTitle ? headerTitle.innerText.trim() : "AI";
 
-                // C. 从原始 System Prompt 中挖掘深层数据
+                // C. 从原始 System Prompt 中提取深层数据
+                // (原EPhone通常把设定放在第一条role: system的消息里)
                 const originalSystemContent = messages.find(m => m.role === 'system')?.content || "";
                 
-                // 1. 提取用户名字
+                // 1. 提取用户名字 (尝试匹配 "昵称: xxx" 或 "用户的名字: xxx")
                 let userName = "用户";
                 const userMatch = originalSystemContent.match(/用户.*?昵称.*?: (.*?)(\n|$)/) || 
                                   originalSystemContent.match(/对话的用户是：(.*?)\n/);
@@ -4214,18 +4216,21 @@
                     stickersList = "- (无可用表情)";
                 }
 
-                // 5. 提取历史对话
+                // 5. 提取历史对话 (并转换为纯文本剧本格式)
                 let historyText = messages.filter(m => m.role !== 'system').map(msg => {
                     const roleName = msg.role === 'user' ? userName : charName;
                     let content = msg.content;
-                    if (typeof content !== 'string') content = JSON.stringify(content);
+                    if (typeof content !== 'string') {
+                        content = JSON.stringify(content); // 处理图片/对象指令
+                    }
+                    // 清理 EPhone 的时间戳标记
                     content = content.replace(/\(Timestamp: \d+\)\s*/, "");
                     return `${roleName}: ${content}`;
                 }).join("\n");
 
 
                 // =================================================
-                // 【STEP 2】: 组装你的定制 Prompt (已更新第3点)
+                // 【STEP 2】: 组装你的定制 Prompt (小章鱼模板)
                 // =================================================
                 
                 const newSystemPrompt = `
@@ -4283,23 +4288,31 @@ ${historyText}
                 // =================================================
                 
                 if (originalBody.messages) {
+                    // OpenAI 格式
+                    // 清空原有所有历史，只保留这一条我们构造好的用户指令
+                    // 这会让 AI 以为这是用户刚刚发来的一大段完整要求
                     originalBody.messages = [
                         { role: "user", content: newSystemPrompt }
                     ];
                 } else if (originalBody.contents) {
+                    // Gemini 格式兼容
                     originalBody.contents = [
                         { parts: [{ text: newSystemPrompt }] }
                     ];
                 }
 
+                // 将修改后的 Body 转回字符串，准备发送
                 options.body = JSON.stringify(originalBody);
-                console.log(`🐙 小章鱼Prompt已注入，当前角色: ${charName}`);
+                
+                console.log(`🐙 小章鱼Prompt已注入 | 角色: ${charName} | 用户: ${userName}`);
 
             } catch (e) {
                 console.error("🐙 小章鱼拦截器执行出错:", e);
+                // 出错不阻断，避免卡死，会回退发送原始请求
             }
         }
 
+        // 执行请求
         return originalFetch.apply(this, arguments);
     };
 })();
