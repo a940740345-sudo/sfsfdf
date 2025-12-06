@@ -4121,7 +4121,7 @@
 <script>
 (function() {
     // ===========================
-    // 1. 界面交互部分 (保持不变，负责按钮和弹窗)
+    // 1. 界面交互部分 (保持不变)
     // ===========================
     document.addEventListener('DOMContentLoaded', () => {
         const octBtn = document.getElementById('octopus-mode-btn');
@@ -4150,7 +4150,7 @@
     });
 
     // ===========================
-    // 2. 核心拦截与数据注入 (Critical Logic)
+    // 2. 核心拦截与数据注入 (修复名字抓取)
     // ===========================
     const originalFetch = window.fetch;
 
@@ -4158,7 +4158,6 @@
         const isOctopusEnabled = localStorage.getItem('isOctopusLogicEnabled') === 'true';
         const urlStr = String(url);
         
-        // 判断是否是发给大模型的请求
         const isAiRequest = options && options.method === 'POST' && 
                             (urlStr.includes('chat/completions') || 
                              urlStr.includes('generateContent') || 
@@ -4170,43 +4169,62 @@
             try {
                 let originalBody = JSON.parse(options.body);
                 let messages = originalBody.messages || []; 
+                const originalSystemContent = messages.find(m => m.role === 'system')?.content || "";
 
                 // =================================================
-                // 【STEP 1】: 提取原始数据 (侦探工作)
+                // 【STEP 1】: 智能数据提取
                 // =================================================
                 
                 // A. 获取当前时间
                 const currentTime = new Date().toLocaleString('zh-CN', { hour12: false });
 
-                // B. 获取角色名字 (从界面标题抓取最准确)
-                const headerTitle = document.getElementById('chat-header-title');
-                const charName = headerTitle ? headerTitle.innerText.trim() : "AI";
-
-                // C. 从原始 System Prompt 中挖掘深层数据
-                // EPhone 会把一大堆设定放在第一条 role: system 的消息里
-                const originalSystemContent = messages.find(m => m.role === 'system')?.content || "";
+                // B. 【关键修复】智能获取角色名字
+                let charName = "AI";
                 
-                // 1. 提取用户名字 (尝试匹配 "昵称: xxx" 或 "用户的名字: xxx")
+                // 1. 先尝试从 System Prompt 里找 "你正在扮演角色“XXX”"
+                const systemNameMatch = originalSystemContent.match(/你正在扮演角色[“"'](.*?)["'”]/) ||
+                                        originalSystemContent.match(/你的本名.*?: ["'“](.*?)["'”]/);
+                
+                if (systemNameMatch) {
+                    charName = systemNameMatch[1]; // 这是最准的，因为是 EPhone 发给 AI 的设定
+                } else {
+                    // 2. 如果找不到，才尝试读取界面标题
+                    const headerTitle = document.getElementById('chat-header-title');
+                    const titleText = headerTitle ? headerTitle.innerText.trim() : "";
+                    
+                    // 排除无效状态文本
+                    if (titleText && !titleText.includes("正在输入") && titleText !== "聊天对象") {
+                        charName = titleText;
+                    } else {
+                        // 3. 如果界面也在“正在输入”，尝试从最近一条 AI 回复中找名字 (EPhone history 格式)
+                        // 这是一个保底策略
+                        const lastAiMsg = messages.slice().reverse().find(m => m.role === 'assistant' && m.senderName);
+                        if (lastAiMsg && lastAiMsg.senderName) {
+                            charName = lastAiMsg.senderName;
+                        }
+                    }
+                }
+                console.log(`🐙 抓取到的角色名: ${charName}`);
+
+
+                // C. 提取其他信息
                 let userName = "用户";
                 const userMatch = originalSystemContent.match(/用户.*?昵称.*?: (.*?)(\n|$)/) || 
                                   originalSystemContent.match(/对话的用户是：(.*?)\n/);
                 if (userMatch) userName = userMatch[1].trim().replace(/["']/g, "");
 
-                // 2. 提取角色人设 (截取 "# 你的角色设定" 到下一个标题之间的内容)
                 let charPersona = "请根据名字自行扮演。";
                 const charPersonaParts = originalSystemContent.split(/# 你的角色设定|# 身份/);
                 if (charPersonaParts.length > 1) {
                     charPersona = charPersonaParts[1].split('#')[0].trim();
                 }
 
-                // 3. 提取用户人设
                 let userPersona = "暂无详细设定。";
                 const userPersonaParts = originalSystemContent.split(/# 你的聊天对象（用户）的人设|# 用户设定/);
                 if (userPersonaParts.length > 1) {
                     userPersona = userPersonaParts[1].split('#')[0].trim();
                 }
 
-                // 4. 提取表情包列表 (非常重要，否则发表情会报错)
                 let stickersList = "";
                 const stickerParts = originalSystemContent.split(/# 可用表情包|# 1. 可用表情包/);
                 if (stickerParts.length > 1) {
@@ -4215,26 +4233,20 @@
                     stickersList = "- (无可用表情)";
                 }
 
-                // 5. 提取历史对话 (并转换为纯文本剧本格式)
-                // 我们过滤掉第一条系统消息，只保留后面的对话
+                // D. 提取历史对话
                 let historyText = messages.filter(m => m.role !== 'system').map(msg => {
                     const roleName = msg.role === 'user' ? userName : charName;
-                    
-                    // 处理内容：如果是对象(如图片指令)，转为字符串；如果是文本，直接用
                     let content = msg.content;
                     if (typeof content !== 'string') {
                         content = JSON.stringify(content);
                     }
-                    
-                    // 可选：清理掉 EPhone 的时间戳标记 "(Timestamp: ...)" 让文本更干净
                     content = content.replace(/\(Timestamp: \d+\)\s*/, "");
-
                     return `${roleName}: ${content}`;
                 }).join("\n");
 
 
                 // =================================================
-                // 【STEP 2】: 组装你的定制 Prompt
+                // 【STEP 2】: 组装你的 Prompt
                 // =================================================
                 
                 const newSystemPrompt = `
@@ -4294,7 +4306,6 @@ ${historyText}
                 if (originalBody.messages) {
                     // OpenAI 格式
                     originalBody.messages = [
-                        // 把所有的上下文都压缩成一条用户指令发送给 AI
                         { role: "user", content: newSystemPrompt }
                     ];
                 } else if (originalBody.contents) {
@@ -4304,14 +4315,11 @@ ${historyText}
                     ];
                 }
 
-                // 转换回字符串
                 options.body = JSON.stringify(originalBody);
-                
-                console.log(`🐙 小章鱼Prompt已注入，当前角色: ${charName}`);
+                console.log(`🐙 小章鱼Prompt已注入 | 角色: ${charName} | 用户: ${userName}`);
 
             } catch (e) {
                 console.error("🐙 小章鱼拦截器执行出错:", e);
-                // 出错不阻断，让原始请求继续，避免卡死
             }
         }
 
